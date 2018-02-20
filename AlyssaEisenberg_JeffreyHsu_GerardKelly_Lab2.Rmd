@@ -7,9 +7,9 @@ output: pdf_document
 # Alcohol Consumption, Self-Esteem and Romantic Interactions
 
 ## Introduction 
-The researchers stated the hypothesis as follow: *“We hypothesized that negative interactions with romantic partners would be associated with alcohol consumption (and an increased desire to drink). We predicted that people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions. The relation between drinking and negative relationship interactions should not be evident for individuals with high trait self-esteem.”*  
+The researchers stated the hypothesis as follow: *"We hypothesized that negative interactions with romantic partners would be associated with alcohol consumption (and an increased desire to drink). We predicted that people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions. The relation between drinking and negative relationship interactions should not be evident for individuals with high trait self-esteem."*  
 
-## EDA
+## Gerard EDA
 ```{r message=FALSE, warning=FALSE}
 library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot)
 dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
@@ -118,3 +118,18 @@ p1 <- ggplot(na.omit(dehart_nrel[which(dehart_nrel$state<=4),]), aes(nrel, numal
 p2 <- ggplot(na.omit(dehart_nrel[which(dehart_nrel$state>4),]), aes(nrel, numall)) + geom_jitter(aes(colour = state)) + geom_smooth(colour = "red",method="loess") + ggtitle("Negative romatic events and\nnumber of drinks;\nhigh state-self-esteem") 
 grid.arrange(p1, p2,ncol = 2)
 ```
+
+
+
+## Alyssa EDA
+
+Note that I am using the setup from Gerard's EDA to keep consistent (reading in the data file, libraries used).
+
+Let us first examine
+
+
+
+## Jeffrey's EDA
+
+
+
