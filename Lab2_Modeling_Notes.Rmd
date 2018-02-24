@@ -1,0 +1,70 @@
+---
+title: "W271 Spring 18: Lab 2"
+author: "Alyssa Eisenberg, Jeffrey Hsu, Gerard Kelly"
+output: pdf_document
+---
+
+# Alcohol Consumption, Self-Esteem and Romantic Interactions
+
+## Section copied from EDA with basic setup
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot)
+dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+dehart$dayweek_f <- factor(dehart$dayweek); levels(dehart$dayweek_f) = c("mon","tue","wed","thu","fri","sat","sun")
+dehart$gender_f <- factor(dehart$gender); levels(dehart$gender_f) = c("male","female")
+
+dehart_nrel = dehart[which(dehart$nrel != 0),]
+
+dehart$rosn_cat <- cut(dehart$rosn, breaks=c(-1, 2.8, 3.4, Inf), labels = c("low", "mid", "high"))
+
+dehart$trel <- dehart$nrel/sd(dehart$nrel) + dehart$prel/sd(dehart$prel)
+```
+
+## Research Goal
+The researchers stated the hypothesis as follow: *"We hypothesized that negative interactions with romantic partners would be associated with alcohol consumption (and an increased desire to drink). We predicted that people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions. The relation between drinking and negative relationship interactions should not be evident for individuals with high trait self-esteem."*  
+
+## Modeling Notes From Discussion
+
+**Questions for modeling raised by EDA**
+
+- Which data points?
+- if use all days data, will want some sort of DOW fixed effects (either each, or grouped) and mention that it violates independence assumption
+- for final model, run it 7 times(once for each day) to check robustness. Maybe show one of these in final paper, but mostly just describe if there are no differences
+
+- Do we exclude the couple missing data points? If so, do we exclude all data for that participant as a whole?
+- remove the individual rows for any data missing
+- maybe go back and see what happens if remove entire participant later
+
+- What is our output? Number of drinks, or desire to drink?
+- Run all models with both. Probably not including all in report, but worth looking at
+
+- Type of model
+- number of drink: Poisson seems like a good choice for modeling the data, don't have good binning values, this is a count variable
+- desire to drink: maybe ordinal model b/c it doesn't feel like a continuous variable for linear regression b/c it is a ranked value. Poisson also not appropriate b/c not counts. Fairly flat distribution, so could do bins 1-2, 2-3, ..., 7-8. Want to check presence of negative events and low self esteem in each bin. If not enough variation, maybe reduce to fewer bins (low up to 3.5, mid up to 6, high up to 8)
+
+- nrel variable - how include?
+- make into a categorical variable (dummy): 0 vs any. B/c so much of the data is at 0, and there is not a lot of variation above 0. Removes high leverage couple points with high nrel values
+
+
+- trait self-esteem - how include?
+- stay as continuous. there is no clear break points, hard to bin. hard to interpret if you have multiple bins for interaction
+
+- Do we want a variable for total romantic relationship events?
+No b/c already including prel as its own variable
+
+- Model specification:
+- base model: nrel dummy, trait self-esteem, interaction(nrel * trait self-esteem)
+- intermediate model: add DOW, prel, interaction(prel * trait self-esteem)
+- full model: add age, gender, negevent, posevent, state self-esteem
+
+
+Testing:
+- individual LRT of nrel interaction term (tells us whether the effect differs based on self-esteem to answer hypothesis)
+- joint LRT test of nrel/interaction (tells us whether nrel has impact to begin with)
+- joint LRT test of prel/interaction
+
+- Look at in-sample fit values (AIC)
+
+- Conduct residual diagnostics. Produce them, then look at them together to discuss what they mean
+- Keep in mind checks for leverage on both number of drinks and number of negative relationship events.
+

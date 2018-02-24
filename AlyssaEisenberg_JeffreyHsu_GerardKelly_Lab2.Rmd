@@ -129,9 +129,215 @@ grid.arrange(p1, p2,ncol = 2)
 
 Note that I am using the setup from Gerard's EDA to keep consistent (reading in the data file, libraries used).
 
-Let us first examine
+Let us first examine the summary of the dataset and understand our variables.
+
+```{r}
+# Overview of data
+describe(dehart)
+
+# Gather more data on count of data points per participant, and how their study day vs week day relate
+table((table(dehart$id)))
+xtabs(~studyday + dayweek, data=dehart)
+
+# Examine the participants with any missing values
+dehart$id[is.na(dehart$numall)]
+dehart$id[is.na(dehart$desired)]
+dehart$id[is.na(dehart$state)]
+dehart[dehart$id %in% dehart$id[is.na(dehart$numall)],]
+dehart[dehart$id %in% dehart$id[is.na(dehart$desired) | is.na(dehart$state)],]
+
+# Check on ptoentially erroneous values
+dehart[dehart$posevent>3,]
+
+```
+
+This dataset has 623 observations and 13 variables. There are a few missing values and potential erroneous values, noted at each variable below where they occur. There are no values that appear top or bottom coded in the data.
+
+**Variables**
+
+- Each unique participant is assigned an id number, encoded as **id**. There are 89 unique participants in the dataset, each with 7 data points
+
+- *studyday* encodes which day of the study it was for the participant. There are 89 observations for each of study days 1 through 7, meaning that we have data for each participant for their first seven days of the study
+
+- *dayweek* is the day of the week for the observation. Again, there are 89 observations for each day of the week 1 through 7 (Monday is coded as 1). Note that participants are unevenly spaced out for which day of the week they start the study: 10 start on Monday, 7 on Tuesday, 19 on Wednesday, 15 on Thursday, 16 on Friday, 6 on Saturday, and 16 on Sunday
+
+- *numall* is the number of alcoholic drinks consumed on that day. It is an integer variable taking 18 distinct values, ranging from 0 to 21 drinks. Note that there is 1 missing value for participant id 42.
+
+- *nrel* is a measure of negative romantic relationship interactions. It is a continuous variable taking 33 distinct values, ranging from 0 to 9
+
+- *prel* is a measure of positive romantic relationship interactions. It is a continuous variable taking 68 distinct values, ranging from 0 to 9
+
+- *negevent* is a combination of several items scored on a 0-3 scale measuring the total number and intensity of negative events on the given day. A higher value indicates a larger number of negative events and/or more extremely negative events. It is a continuous variable taking 131 distinct values, ranging from 0 to 2.4
+
+- *posevent* is a combination of several items scored on a 0-3 scale measuring the total number and intensity of positive events on the given day. A higher value indicates a larger number of positive events and/or more extremely positive events. It is a continuous variable taking 216 distinct values, ranging from 0 to 3.9. Values above 3 are a bit suspicious since this variable combines several items scored on a 0-3 scale, but we cannot be sure that these are erroneous values since we do not know the combination formula or the individual values. There are only 8 rows with values over 3, and the rest of the data appears normal. Thus, we will continue our investigation assuming these are valid data points
+
+- *gender* is coded as 1 (male) or 2 (female), with a slightly higher proportion of females (39 males, and 50 females)
+
+- *rosn* is our measure for trait self-esteem, which is a long-term view of self-worth. This value was measured once at the beginning of the study, so the same value carries through all seven observations for each individual. It is a continuous variable taking 17 distinct values ranging from 2.1 to 4
+
+- *age* is a continuous variable taking 89 distinct values ranging from 24.4 to 42.3
+
+- *desired* measures the participants' desire to drink, with a higher score meaning a greater desire. It is a continuous variable taking 22 distinct values ranging from 1 to 8. Note that there are 3 missing values for participant ids 2, 110, 116.
+
+- *state* is our measure for state self-esteem, which is a short-term view of self-worth. This was measured daily, unlike *rosn* long-term self-esteem. It is a continuous variable taking 25 distinct values ranging from 2.3 to 5. Note that there are 3 missing values for participant ids 2, 4, 110.
 
 
+Now that we understand the basic about our data, let us examine the univariate distributions. We already know the distributions for participant id, study day, day of the week, and gender. Thus, we will focus here on our nine other continuous variables.
+
+```{r}
+# Distributions - histograms
+par(mfrow=c(3,3))
+hist(dehart$numall, main = "Number of Drinks")
+hist(dehart$nrel, main = "Neg Relationship Events")
+hist(dehart$prel, main = "Pos Relationship Events")
+hist(dehart$desired, main = "Desire to Drink")
+hist(dehart$negevent, main = "Neg Events")
+hist(dehart$posevent, main = "Pos Events")
+hist(dehart$rosn, main = "Trait Self-Esteem")
+hist(dehart$state, main = "State Self-Esteem")
+hist(dehart$age, main = "Age")
+
+# Distributions - table format for more detail on outcome variables
+xtabs(~numall, data=dehart) #Number of drinks
+round(prop.table(xtabs(~numall, data=dehart)), 2) #Proportion of number of drinks
+
+xtabs(~desired, data=dehart) #Desire to drink
+round(prop.table(xtabs(~desired, data=dehart)), 2) #Proportion of desire to drink
+
+# Deeper dive on distribution of particular interest: negative relationship events
+round(prop.table(xtabs(~nrel, data=dehart))[1], 2)
+
+ggplot(dehart[dehart$nrel>0,], aes(x = nrel)) +
+  geom_histogram(aes(y = ..density..), binwidth=0.2, fill="#0072B2", colour="black") +
+  ggtitle("Neg Relationship Events > 0") + 
+  theme(plot.title = element_text(lineheight=1, face="bold"))
+
+# Create new variable for categorical transformation of trait self-esteem
+dehart$rosn_cat <- cut(dehart$rosn, breaks=c(-1, 2.8, 3.4, Inf), labels = c("low", "mid", "high"))
+```
+
+Our main output variable of number of drinks consumed is highly positively skewed. Around 60% of the data is spread evenly across 0, 1, or 2 drinks, and only around 6% of the data is at or above 7 drinks. In particular, the five data points with over 12 drinks may be high leverage, an issue we should look for in our modeling. Our other potential output variable of number of desire to drink does not display this extreme skew. Instead, it looks a bit more normal with a higher density area from 4 to 6, and tails of fairly uniform lower density out to 1 and 8.
+
+Our main independent variable of interest in analyzing our current hypothesis is the number of negative relationship events. This is highly positively skewed, with 77% of our data points having a vlue of 0. Among the remaining non-zero data, we still see a positive skew with most of the data having values less than 1, and only a couple points with values over 3. There is a particular outlier at a value of 8 which may have high leverage that we should look for during our modeling. This lack of variation in our primary independent variable of interest may make our analysis more challenging.
+
+Our other variables measuring negative / positive event indexes also tend to be positively skewed, although less severely than negative relationship events. The positive measures have a larger spread than the negative ones - ie, positive romantic events is much less skewed than negative romantic events, and positive overall events has data going slightly above 3 while negative overall events maxes out less than 2.
+
+Trait and state self-esteem are both negatively skewed. State self-esteem looks a bit closer to a normal distribution, likely due to the increased number of unique observations since this is a daily measure. Trait self-esteem is another primary independent variable since we will be looking for different behavior among those with high vs low trait self-esteem. There is not a clear break-point in the distribution that would easily divide the population into low vs. high self-esteem populations. This would indicate that we may want to include this as a continuous variable in our modeling rather than transforming it into a categorical variable. If we do consider transforming it, we do see slight jumps in density at 2.8 and 3.4, so would suggest 'low self-esteem' to be below 2.8, 'medium self-esteem' to be 2.8 through 3.4, and 'high self-esteem' to be above 3.4.
+
+Age is relatively uniformly spread from mid-twenties through early forties, with slightly more participants on the older end of the spectrum.
+
+
+Having examined our univariate distributions, we will now consider multi-variate relationships.
+
+```{r}
+# Number of drinks and desire to drink
+ggplot(na.omit(dehart), aes(x=desired, y=numall)) +
+  geom_point() + geom_count() + 
+  ggtitle("Number of Drinks vs. Desire to Drink (w/observation counts)")
+```
+We see a generally positive relationship between desire to drink and number of drinks consumed, as we would expect. There are a couple outliers at the low end of desire to drink, but with a higher number of drinks consumed (even a point with 18 drinks).
+
+```{r}
+# Drinking outputs vs. negative romantic relationship events, marking trait self-esteem category
+g1 <- ggplot(na.omit(dehart), aes(x=nrel, y=numall, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) + 
+  ggtitle("Num Drinks vs. Neg Relationships by Self-Esteem Category")
+g2 <- ggplot(na.omit(dehart), aes(x=nrel, y=desired, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) +  
+  ggtitle("Desire to Drink vs. Neg Relationships by Self-Esteem Category")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+
+g1 <- ggplot(na.omit(dehart[dehart$nrel>0,]), aes(x=nrel, y=numall, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) + 
+  ggtitle("Num Drinks vs. Neg Relationships>0 by Self-Esteem Category")
+g2 <- ggplot(na.omit(dehart[dehart$nrel>0,]), aes(x=nrel, y=desired, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) +  
+  ggtitle("Desire to Drink vs. Neg Relationships>0 by Self-Esteem Category")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+```
+
+Here we look at all our primary variables - outputs, main independent variable of interest, and the groups where we expect to see different impacts of the independent variable. We see that negative relationship events do not appear to have a strong relationship with either number of drinks consumed or desire to drink. The large proportion of individuals with 0 negative relationship events easily covers the full range of the output variables, and we do not see major differences in spread for those with more negative relationship events. The one thing of note is that after around 3 for negative relationship events, we no longer see individuals consuming 0 drinks and their desire to drink is always above 3. However, this should be taken with a grain of salt since there are not many observations with more than a 3 for negative relationship events. 
+
+However, this relationship appears to change when we take into account long-term self-esteem (shown as categories here for ease of visualization). Those with low self-esteem and no negative romantic relationship events can be seen along the full spread of number of drinks consumed and desire to drink. But all low self-esteem individuals with some negative romantic relationship events consumed over around 2.5 drinks and rated their desire to drink over around 5. This is in contrast to those with high self-esteem who continue having lower number of drinks and desire to drink even in the presence of negative relationship events. These differences are more clearly visible in the scatterplots without the data points for those with 0 negative relationship events.
+
+```{r}
+# Drinking outputs vs. positive romantic relationship events, marking trait self-esteem category
+g1 <- ggplot(na.omit(dehart), aes(x=prel, y=numall, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) + 
+  ggtitle("Num Drinks vs. Pos Relationships by Self-Esteem Category")
+g2 <- ggplot(na.omit(dehart), aes(x=prel, y=desired, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) +  
+  ggtitle("Desire to Drink vs. Pos Relationships by Self-Esteem Category")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+
+# Relationship between negative and positive relationship events
+ggplot(na.omit(dehart), aes(x=nrel, y=prel)) +
+  geom_point() + geom_count() + 
+  ggtitle("Positive vs. Negative Relationship Events (w/observation counts)")
+```
+
+Running the same visualization for positive relationship events instead of negative ones, we similarly see the drinking outcome variables having similar distributions conditional only on our index of positive relationship events. As with negative events, we see a small relationship where those with more positive relationship events no longer report the lowest values for desire to drink (but less of a relationship for drinks consumed). When we take into account trait self-esteem levels, we also see different patterns emerge. Among low self-esteem individuals, those with higher values for positive relationship events also have the higher number of drinks consumed and larger concentration at a high desire to drink. Those with high self-esteem do not display a similar trend, and appear to have less change in their distributions based on number of positive romantic events. Combined with the patterns seen for negative relationship events, this may mean that low income individuals have a higher desire and consumption of alcohol when having more romantic relationship events, regardless of whether they are positive or negative. 
+
+It appears that there is a modestly negative relationship between positive and negative romantic relationship events, but it is clouded by the large proportion of observations with 0 negative events.
+
+
+```{r}
+dehart$trel <- dehart$nrel/sd(dehart$nrel) + dehart$prel/sd(dehart$prel)
+
+# Drinking outputs vs. total romantic relationship events, marking trait self-esteem category
+g1 <- ggplot(na.omit(dehart), aes(x=trel, y=numall, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) + 
+  ggtitle("Num Drinks vs. All Relationships by Self-Esteem Category")
+g2 <- ggplot(na.omit(dehart), aes(x=trel, y=desired, color=rosn_cat)) +
+  geom_jitter(width=0.3, height=0.3) +  
+  ggtitle("Desire to Drink vs. All Relationships by Self-Esteem Category")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+```
+
+I combined the two by adding the number of standard deviations to avoid the negative events being overwhelmed by the positive ones since so many of the negative values were close to 0 and positive ones had a wider spread. If these had been actual counts of interactions, I would have just added them. We see the same sort of relationships here as we saw in both the negative and positive relationship cases.
+
+```{r}
+# Boxplots of drinking outcomes by day of the week
+g1 <- ggplot(na.omit(dehart), aes(dayweek_f, numall)) +
+  geom_boxplot(aes(fill = dayweek_f)) +
+  ggtitle("Number of Drinks by Day of Week")
+g2 <- ggplot(na.omit(dehart), aes(dayweek_f, desired)) +
+  geom_boxplot(aes(fill = dayweek_f)) +
+  ggtitle("Desire to Drink by Day of Week")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+
+# Density of drinking outcomes by gender
+g1 <- ggplot(na.omit(dehart), aes(numall)) +
+  geom_density(aes(color=gender_f, fill=gender_f), alpha=0.1) + 
+  ggtitle("Number of Drink Density by Gender")
+g2 <- ggplot(na.omit(dehart), aes(desired)) +
+  geom_density(aes(color=gender_f, fill=gender_f), alpha=0.1) + 
+  ggtitle("Desire to Drink Density by Gender")
+
+grid.arrange(g1, g2, nrow=2, ncol=1)
+
+# Scatterplot matrix of all numerical variables
+suppressWarnings(scatterplotMatrix(na.omit(dehart[,c("numall", "desired", "nrel", "prel", "negevent", "posevent", "rosn", "age", "state")])))
+```
+
+Beyond our main relationships, we also wanted to look at the other covariates' relationships with our output variables. For day of the week, we see moderately increased number of drinks consumed and desire to drink on Friday and Saturday. The other days of the week have slightly lower means, with more variance on Monday and Sunday. For gender, we see that males have a higher density at mid to high values for desire to drink and their density for drinks consumed has a less steep slope going towards more drinks. Females, on the other hand, have higher densities at low desire to drink and low number of drinks consumed with steeper drops as drinking values increase. Note that we do not see large differences in relationships with covariates for desire to drink versus drinking consumption.
+
+We also examined the scatterplot matrix of all the numerical variables for relationships on note. Beyond the ones we have already examined in more depth, we see that there are positive correlations between negative realtionship events and all negative events, as well as for positive relationship events and all positive events. We also see a moderately positive correlation between trait self-esteem and state self-esteem.
+
+**Questions for modeling raised by EDA**
+
+- How do we deal with the time series aspect of the data? Do we limit ourselves to 1 day, do we run 7 different models (one for each day of the week)? DO we include all data as if they are independent data points?
+- Do we exclude the couple missing data points? If so, do we exclude all data for that participant as a whole?
+- What is our output? Number of drinks, or desire to drink?
+- If output is number of drinks, do we use a poisson model with number of drinks as the outcome, or do a ordinal model after binning the number of drinks into categories?
+- Should we include trait self-esteem as a numerical variable, or decide on a split point for high vs low self-esteem?
+- Do we want a variable for total romantic relationship events?
+- Keep in mind checks for leverage on both number of drinks and number of negative relationship events.
 
 ## Jeffrey's EDA
 
