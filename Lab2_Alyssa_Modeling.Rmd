@@ -46,7 +46,7 @@ ggplot(na.omit(dehart), aes(y=rosn, x=desired_binL, fill=factor(nrel_dummy))) + 
 
 # Remove data points where there is an observation missing (note: do not remove the entire individual)
 dehart_clean <- dehart[!(is.na(dehart$numall) | is.na(dehart$state) | is.na(dehart$desired)),]
-
+summary(dehart_clean)
 ```
 
 
@@ -112,6 +112,14 @@ suppressWarnings(residualPlots(pois_final, layout=c(3,3)))
 
 
 # Run final model once for each day and compare against version with all data
+pois_final_mon <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="mon"), family=poisson(link=log))
+pois_final_tue <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="tue"), family=poisson(link=log))
+pois_final_wed <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="wed"), family=poisson(link=log))
+pois_final_thu <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="thu"), family=poisson(link=log))
+pois_final_fri <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="fri"), family=poisson(link=log))
+pois_final_sat <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="sat"), family=poisson(link=log))
+pois_final_sun <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="sun"), family=poisson(link=log))
+
 
 ```
 
@@ -182,6 +190,13 @@ anova(prop_odds_final_testNrel, prop_odds_final, test="Chisq") #p-value=9%, nrel
 
 
 # Run final model once for each day and compare against version with all data
+prop_odds_final_mon <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="mon"), method="logistic")
+prop_odds_final_tue <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="tue"), method="logistic")
+prop_odds_final_wed <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="wed"), method="logistic")
+prop_odds_final_thu <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="thu"), method="logistic")
+prop_odds_final_fri <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="fri"), method="logistic")
+prop_odds_final_sat <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="sat"), method="logistic")
+prop_odds_final_sun <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="sun"), method="logistic")
 
 ```
 
@@ -191,6 +206,18 @@ anova(prop_odds_final_testNrel, prop_odds_final, test="Chisq") #p-value=9%, nrel
 library(stargazer)
 
 stargazer(pois_base,pois, pois_final, pois_full, prop_odds_base, prop_odds, prop_odds_final, prop_odds_full,
+          star.cutoffs = c(.05,.01,.001),
+          header=F
+          ,type="text"
+          )
+
+stargazer(pois_final, pois_final_mon, pois_final_tue, pois_final_wed, pois_final_thu, pois_final_fri, pois_final_sat, pois_final_sun,
+          star.cutoffs = c(.05,.01,.001),
+          header=F
+          ,type="text"
+          )
+
+stargazer(prop_odds_final, prop_odds_final_mon, prop_odds_final_tue, prop_odds_final_wed, prop_odds_final_thu, prop_odds_final_fri, prop_odds_final_sat, prop_odds_final_sun,
           star.cutoffs = c(.05,.01,.001),
           header=F
           ,type="text"
