@@ -1,0 +1,27 @@
+---
+title: "Models - Jeffrey"
+author: "Jeffrey Hsu"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load Data & Prepare Data Structure
+
+
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); library(Hmisc) 
+library(mcprofile); library(ggplot2); library(gridExtra) 
+library(reshape2); library(GGally); library(ggcorrplot)
+dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+```
+
+## 
+
+```{r}
+
+```
+
+

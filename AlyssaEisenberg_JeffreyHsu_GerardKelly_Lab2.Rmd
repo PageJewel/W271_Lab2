@@ -11,9 +11,13 @@ The researchers stated the hypothesis as follow: *"We hypothesized that negative
 
 ## Gerard EDA
 ```{r message=FALSE, warning=FALSE}
-library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot)
+library(car); require(dplyr); library(Hmisc) 
+library(mcprofile); library(ggplot2); library(gridExtra) 
+library(reshape2); library(GGally); library(ggcorrplot)
 dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
-#describe(dehart) #with a 10-page limit, should we include this type of output?
+#Comment out the following 2 lines before submission
+describe(dehart) 
+summary(dehart)
 ```
 The dataset contains 623 observations of 13 variables representing entries in records kept by study participants. The variable \textbf{id} is a numeric identifier for each of the 89 study participants. Each participant recorded entries for seven consecutive days, indexed by the \textbf{studyday} variable, with the \textbf{dayweek} variable indicating which days of the week these correspond to (Monday = 1). The variable \textbf{gender} takes on one of two values according to whether the participant is male (1) or female (2); about 56\% of the participants are female.  
 <!-- assume that the studyday variable is not important, but that the dayweek variable should be controlled for. 
@@ -131,5 +135,75 @@ Let us first examine
 
 ## Jeffrey's EDA
 
+Using the rawdata setup from Gerard. 
+
+We see that the dataset contains 623 obervations and 13 variables for each observation. Each id contains exactly 7 study points correponding to 7 days a week. We have 89 distinct ids, distributed equally among weekdays.
+
+```{r}
+#summary(dehart)
+describe(dehart)
+#head(dehart, n=15)
+dim(dehart) # 623 obervations, 13 variables
+#nrow(dehart) # number of observations
+#ncol(dehart) # number of variables
+
+## id
+table(dehart$id)
+
+## dayweek
+dehart$dayweek = factor(dehart$dayweek)
+levels(dehart$dayweek) = c("mon","tue","wed","thu","fri","sat","sun")
+table(dehart$dayweek)
+
+## numall
+sum(is.na(dehart$numall)) # 1 missing value
+dehart$id[is.na(dehart$numall)] # id = 42
+dehart$dayweek[is.na(dehart$numall)] # sunday
+
+## gender
+sum(is.na(dehart$gender)) # no missing value
+dehart$gender = factor(dehart$gender-1)
+summary(dehart$gender)
+sum(dehart$gender == 1) / length(dehart$id) # % of female
+
+## age
+sum(is.na(dehart$age)) # no missing value
+mean(dehart$age, na.rm=TRUE) # avg age
+sd(dehart$age, na.rm=TRUE) # sd age
+#max(dehart$age)
+#min(dehart$age)
+hist(dehart$age, main="age histogram", breaks=20:45-0.5)
+
+## nrel
+sum(is.na(dehart$nrel)) # no missing value
+mean(dehart$nrel)
+sd(dehart$nrel)
+hist(dehart$nrel)
+
+## prel
+sum(is.na(dehart$prel)) # no missing value
+mean(dehart$prel)
+
+## posevent
+sum(is.na(dehart$posevent)) # no missing value
+mean(dehart$posevent) #1.047545
+
+## negevent
+sum(is.na(dehart$negevent))
+mean(dehart$negevent)
+
+## rosn
+sum(is.na(dehart$rosn)) # no missing value
+mean(dehart$rosn) #3.435955
+sd(dehart$rosn) #0.4196052
+
+## 
+```
+
+```{r}
+scatterplotMatrix(na.omit(dehart[,c("numall", "desired", "nrel", 
+                                    "prel", "negevent", "posevent", 
+                                    "rosn", "age", "state")]))
+```
 
 
