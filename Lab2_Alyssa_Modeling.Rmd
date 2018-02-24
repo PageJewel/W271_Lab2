@@ -110,6 +110,8 @@ suppressWarnings(residualPlots(pois_final, layout=c(3,3)))
 # All of the above plots, looking for: extreme residuals. Only about 5% should be beyond abs(2), typically none beyond abs(3). Large number of extreme residuals indicates overdispersion, meaning there is more variability to the counts that what the model assumes (or there is a missing explanatory variable from the model)
 # Test stats only make sense for numeric variables. Null hypothesis is that there is a relationship btwn residuals and variable. We want to reject the null
 
+plot(pois_final)
+
 
 # Run final model once for each day and compare against version with all data
 pois_final_mon <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="mon"), family=poisson(link=log))

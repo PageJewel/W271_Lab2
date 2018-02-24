@@ -70,3 +70,21 @@ Testing:
     - Conduct residual diagnostics. Produce them, then look at them together to discuss what they mean
     - Keep in mind checks for leverage on both number of drinks and number of negative relationship events.
 
+
+
+
+## Notes from discussion post-modeling:
+
+- not sure how to do diagnostic plots for ordinal regression model? Alyssa to do some googling?
+- one page of stargazer tables: base, intermediate, full, final (for poisson), fri or sat poisson model, final desire to drink model
+- only show model diagnostics for final model
+- robust SE: might be better to use them b/c we see some heteroskedasticity in some residuals vs. variable plots
+
+- other diagnostics? test for heteroskedasticity, test for normality of residuals + histogram of residuals or q-q plot. residuals vs leverage w/cook's distance (checking for points with too much influence)
+
+- visual of fitted values vs actual values?
+- explanation of coefficient of interest and CI
+
+- extreme values of residuals - likely missing variables. likely some sort of OVB
+
+- conclusion: some indications in right direction, but cannot support hypothesis - missing variables, also lack of significance on day models and desired.
