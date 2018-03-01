@@ -1,0 +1,167 @@
+---
+title: "W271 Spring 18: Lab 2"
+author: "Alyssa Eisenberg, Jeffrey Hsu, Gerard Kelly"
+output: pdf_document
+---
+
+## Basic setup (confirm all of this is done in EDA section)
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot); library(MASS); library(sandwich); library(stargazer)
+dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+dehart$dayweek_f <- factor(dehart$dayweek); levels(dehart$dayweek_f) = c("mon","tue","wed","thu","fri","sat","sun")
+dehart$gender_f <- factor(dehart$gender); levels(dehart$gender_f) = c("male","female")
+
+dehart$nrel_f <- factor(as.numeric(dehart$nrel != 0))
+dehart$desired_binS <- cut(dehart$desired, breaks=c(-1, 2, 3, 4, 5, 6, 7, 8))
+dehart$desired_binL <- cut(dehart$desired, breaks=c(-1, 3.5, 6, 8))
+```
+
+# Modeling
+
+## Initial Model Specification
+
+First, we decided to run two types of model based on the output variable of interest. The hypothesis under investigation expects a positive association between both desire to drink and actual drinks consumed with negative romantic interaction for those with low trait self-esteem. Thus, we will want to analyze number of drinks as our primary outcome and desire to drink as a secondary outcome variable. For the number of drinks model, we chose a Poisson model because this is a count variable and its distribution approximately followed a Poisson model. While we also considered binning the variable and using a proportional odds model, we did not see clear break points in the distribution to support that choice. For the desire to drink model, we chose a proportional log odds model because it is a ranking on a scale of 1 to 8. Thus, a Poisson model is not appropriate because the output is not a count variable, and a linear regression is not appropriate because it is a ranked output instead of a continuous one. As part of our EDA, we decided to bin the variable into low (1-3.5), mid (3.5-6), and high (6-8) desire to drink.
+
+For each of these models, we decided to run them on all observations without missing values (fewer than 5 had missing values). While we are aware that this violates the model assumption of independence of the observations since each individual has 7 data points collected over time, we wanted to take advantage of the increased number of observations due to the low variation in negative relationship interactions. In our analysis, we will use clustered robust standard errors and we plan on validating the results on the full data set by also running our final model seven more times on data for each individual day of the week.
+
+For each output, we will want to run a base model, an intermediate model, and a full model to check robustness of any results to model specification. Beyond these initial models, we will check for statistical significance to see if we should change any variable inclusion from the intermediate model to a final model.
+
+In our base model, we will include only the variables of interest: dummy for negative relationship interactions, trait self-esteem, and their interaction. We use a dummy for having negative interactions or not because of the high skew (77% of the data have a value of 0), the presence of outliers potentially with high influence (e.g., one points with a value of 8), and the pattern in relationship we saw between this, trait self-esteem, and our output variables in the EDA.
+
+In the intermediate model, we will add day-of-week fixed-effects, positive relationship interactions, and the interaction of positive interactions with trait self-esteem. We saw a relationship among each of these variables in our EDA, and they also theoretically make sense to have an impact on desire to drink and number of drinks consumed.
+
+Finally, the full model will include all of our other variables: age, gender, negative events, positive events, and state self-esteem. These are variables where we did not see a strong relationship with our outcome variables in the EDA.
+
+We now create all the Poisson models for number of drinks discussed above on all observations. While we also examined the desire to drink model, due to space constraints we will only show and discuss the final model version for this secondary outcome variable. Please see Table 1 columns 1, 2, and 4 for the model results using their clustered robust standard errors.
+
+```{r}
+# Poisson models for number of drinks:
+pois_base <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn, 
+                 data=na.omit(dehart), family=poisson(link=log))
+pois_int <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + prel + prel:rosn 
+                + dayweek_f, data=na.omit(dehart), family=poisson(link=log))
+pois_full <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + prel + prel:rosn 
+                 + dayweek_f + age + gender_f + negevent + posevent + state, 
+                 data=na.omit(dehart), family=poisson(link=log))
+```
+
+## Final Model Choice
+
+From our intermediate model, we checked whether the additional variables included beyond the base model were significant using a likelihood ratio test on each variable individually. We found that each of the variables and the interaction term added were statistically significant in explaining additional variance in the residuals, and thus will keep them in our final model. 
+
+**NEED TO DISCUSS: Using cluster robust SE changes significance of prel and interaction, and we might want to exclude them from final model? LRT could be biased b/c it assumes independence of observations. Should we instead build our final model based on an individual day?**
+
+```{r}
+library("lmtest")
+
+Anova(pois_int, test="LR")[c("prel","dayweek_f","rosn:prel"),]
+coeftest(pois_int)[c("prel","rosn:prel"),]
+coeftest(pois_int, vcov = vcovHC(pois_int))[c("prel","rosn:prel"),]
+coeftest(pois_int, vcov = vcovCL(pois_int, cluster=na.omit(dehart)$id))[c("prel","rosn:prel"),]
+
+pois_int_test <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn 
+                + dayweek_f, data=na.omit(dehart), family=poisson(link=log))
+waldtest(pois_int,pois_int_test,vcov=vcovCL(pois_int, cluster=na.omit(dehart)$id))
+```
+
+We also checked the full model to see if there were variables that significantly explained additional variation to include in our final model. We found that gender and negative events were statistically significant. 
+
+**SAME DISCUSSION AS ABOVE: do we include gender and negevent, or not?**
+
+```{r}
+Anova(pois_full, test="LR")[c("age", "gender_f", "negevent", "posevent", "state"),]
+coeftest(pois_full)
+coeftest(pois_full, vcov = vcovCL(pois_full, cluster=na.omit(dehart)$id))
+```
+
+Based on this analysis, we created a final Poisson model (see results in Table 1 column 3). We then compared the AIC values for a measure of in-sample fit including a penalty for more parameters between our various model specifications. 
+
+**ONCE FINAL MODEL DETERMINED, come back to AIC analysis commentary**
+
+```{r}
+# Create final model
+pois_final <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + prel + prel:rosn 
+                  + dayweek_f + gender_f + negevent, data=na.omit(dehart), family=poisson(link=log))
+
+# Obtain AIC values
+cbind(base=AIC(pois_base),int=AIC(pois_int), final=AIC(pois_final),full=AIC(pois_full))
+```
+
+Finally, for robustness we ran the final model for number of drinks consumed seven times, once for each day of the week. Due to space constraints, we only include the version for Friday here since there are more social interactions on Fridays than other days of the week. Note that we also went through a similar process to this for the desire to drink model. We create the final model here, but omit the details leading up to it due to space constraints. These model outputs can be found in Table 1, columns 5 and 6.
+
+**NOTE: will need to check final desire to drink model based on decisions about LRT vs cluster-robust SE tests as well**
+
+```{r}
+# Restrict final model to observations from Fri
+pois_final_fri <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + prel 
+                      + prel:rosn + gender_f + negevent, 
+                      data=subset(na.omit(dehart), dayweek_f=="fri"), family=poisson(link=log))
+
+# Create final model for desire to drink
+prop_odds_final <- polr(formula = desired_binL ~ nrel_f + rosn + nrel_f:rosn 
+                        + dayweek_f + prel + gender_f, data=na.omit(dehart), method="logistic")
+```
+
+With all our models created, here is the output table of all coefficient values and their clustered robust standard errors.
+
+**NOTE: maybe try to hide the DOW coeff and include a row for DOW fixed effects Yes/no to save space?**
+
+```{r, results='asis'}
+# Get clustered robust SE for models with all observations, robust SE for Fri model
+se.pois_base <- sqrt(diag(vcovCL(pois_base, cluster=na.omit(dehart)$id)))
+se.pois_int <- sqrt(diag(vcovCL(pois_int, cluster=na.omit(dehart)$id)))
+se.pois_final <- sqrt(diag(vcovCL(pois_final, cluster=na.omit(dehart)$id)))
+se.pois_full <- sqrt(diag(vcovCL(pois_full, cluster=na.omit(dehart)$id)))
+se.pois_final_fri <- sqrt(diag(vcovHC(pois_final_fri)))
+se.prop_odds_final <- sqrt(diag(vcovCL(prop_odds_final, cluster=na.omit(dehart)$id)))
+
+# Output stargazer table
+stargazer(pois_base,pois_int, pois_final, pois_full, pois_final_fri, prop_odds_final,
+          se = list(se.pois_base, se.pois_int, se.pois_final, se.pois_full, 
+                    se.pois_final_fri, se.prop_odds_final),
+          star.cutoffs = c(.05,.01,.001), header=F
+          #,type="text"
+          )
+```
+
+## Residual Diagnostics
+
+Due to space constraints, we only show residual diagnostics for the final Poisson model on all observations here. However, we saw similar patterns for the individual day Poisson models.
+
+In the plots of Pearson residuals vs. each explanatory variable and the linear predictor, we see that the residual means are pretty constant across the explanatory variable range. However, the residual variances are clearly different for trait self-esteem, day of week, and negative events. This heteroskedasticity indicates we should be using robust standard errors. The other thing to note in these plots is that there are numerous extreme values of residuals greater than 2. This is confirmed in the histogram of the residuals showing a positive skew. This indicates overdispersion in our model, potentially indicating that we have omitted variables which would help reduce the additional variability to the counts that the model cannot currently explain. A couple examples of potential missing explanatory variables are socioeconomic status, attractiveness, and quality of friendships.
+
+Finally, we checked the residuals vs. leverage plot, but did not see any points with high influence (Cook's distance>1) that we would need to be concerned about and check robustness without those outliers.
+
+**NOTE: still need to check how to do diagnostic plots for ordinal regression model**
+**NOTE: check that individual day Poisson models show the same thing**
+**Do we want to talk about OVB for the interaction term? How would we think about this?**
+
+```{r}
+# Pearson residual plots
+suppressWarnings(residualPlots(pois_final, test=FALSE))
+
+# Additional plots - histogram of residuals and leverage/influence plot
+par(mfrow=c(1,2))
+hist(residuals(pois_final, "pearson"), breaks = 20, col = "blue",
+     xlab="Pearson residuals", main="Histogram of Residuals")
+plot(pois_final, which=5)
+```
+
+## Interpret Model Results
+
+Returning to our hypothesis, the coefficient of interest to us is the interaction between negative relationship interactions and trait self-esteem. In our final model for number of drinks, we see that the expected mean number of drinks decreases by 0.89 times for every 0.4 decrease (one standard deviation) in trait self-esteem when negative relationship interactions are not present. When negative relationship interactions are present, the expected mean number of drinks instead increases by 1.02 times for every 0.4 decrease in trait self-esteem. Across all our models in Table 1, this coefficient remains negative with a moderate magnitude. This is in the correct direction to support the hypothesis that negative relationship interactions are positively associated with drinking for those with low trait self-esteem. However, this coefficient is only statistically significant in one specification (our intermediate specification of the number of drinks). 
+
+Due to this lack of robustness in the day-specific models and in the model for desire to drink as well as the potential for omitted variables in the model, we have to conclude that we fail to reject the null that this interaction is 0 and there is no difference in effect of negative relationship interactions based on level of trait self-esteem.
+
+**NOTE: double check significance with final models**
+**Should we explain coefficient in ordinal regression model as well?**
+**Do we want a visual - fitted vs actual values? trait self esteem vs. num of drinks with scatter of actual data and lines for model output with and without nrel?**
+
+
+```{r}
+# Interpretation of coefficient when nrel=0
+unname(round(1/exp(sd(dehart$rosn)*pois_final$coefficients["rosn"]),2))
+# Interpretation of coefficient when nrel=1
+unname(round(1/exp(sd(dehart$rosn)*(pois_final$coefficients["rosn"]+pois_final$coefficients["nrel_f1:rosn"])),2))
+```
+

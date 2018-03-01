@@ -1,0 +1,235 @@
+---
+title: "W271 Spring 18: Lab 2"
+author: "Alyssa Eisenberg, Jeffrey Hsu, Gerard Kelly"
+output: pdf_document
+---
+
+# Alcohol Consumption, Self-Esteem and Romantic Interactions
+
+## Section copied from EDA with basic setup
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot)
+dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+dehart$dayweek_f <- factor(dehart$dayweek); levels(dehart$dayweek_f) = c("mon","tue","wed","thu","fri","sat","sun")
+dehart$gender_f <- factor(dehart$gender); levels(dehart$gender_f) = c("male","female")
+
+dehart_nrel = dehart[which(dehart$nrel != 0),]
+
+dehart$rosn_cat <- cut(dehart$rosn, breaks=c(-1, 2.8, 3.4, Inf), labels = c("low", "mid", "high"))
+
+dehart$trel <- dehart$nrel/sd(dehart$nrel) + dehart$prel/sd(dehart$prel)
+```
+
+## Additional Data Prep For Modeling
+```{r}
+# Transform number of negative romantic events into a categorical dummy variable (0 vs any events) because there is only a small amount of variation above 0. This removes points with potential high leverage (those with high number of negative romantic events)
+# 1 means there have been negative relationship events, 0 means there have not
+dehart$nrel_dummy <- as.numeric(dehart$nrel != 0)
+
+
+# Decide on bins for desire to drink in order to use ordinal logistic regression model
+# Generate potential bin values based on distribution - small bin option for each 1 unit interval, large bin option based on where distribution density increases and then drops again
+dehart$desired_binS <- cut(dehart$desired, breaks=c(-1, 2, 3, 4, 5, 6, 7, 8))
+summary(dehart$desired_binS)
+
+dehart$desired_binL <- cut(dehart$desired, breaks=c(-1, 3.5, 6, 8))
+summary(dehart$desired_binL)
+
+# Check presence of negative events and low self esteem in each bin. If not enough variation, may need to use larger bins
+
+ggplot(na.omit(dehart), aes(y=rosn, x=desired_binS, fill=factor(nrel_dummy))) + geom_boxplot()
+ggplot(na.omit(dehart), aes(y=rosn, x=desired_binL, fill=factor(nrel_dummy))) + geom_boxplot()
+
+# in general seeing that those who have negative romantic relationships tend to not have the very low levels of self-esteem. Perhaps those with too low self-esteem don't event ry to have romantic interactions?
+# smaller bins appear too small. Seeing a lot of variation in distributions of self-esteem across those with some negative interactions, likely due to the small number of data points in each category. Larger bins appear a bit more stable
+# We do see that among those with negative interactions, low self-esteem is only showing up with a high desire to drink. ANd high self-esteem shows up across the full range of desire to drink
+
+# Remove data points where there is an observation missing (note: do not remove the entire individual)
+dehart_clean <- dehart[!(is.na(dehart$numall) | is.na(dehart$state) | is.na(dehart$desired)),]
+summary(dehart_clean)
+```
+
+
+## Research Goal
+The researchers stated the hypothesis as follow: *"We hypothesized that negative interactions with romantic partners would be associated with alcohol consumption (and an increased desire to drink). We predicted that people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions. The relation between drinking and negative relationship interactions should not be evident for individuals with high trait self-esteem."*  
+
+
+
+
+## Poisson Model With Number of Drinks Outcome
+
+```{r}
+# Version with all data points, which violates independence assumption
+
+# generate base model: nrel dummy, trait self-esteem, interaction(nrel * trait self-esteem)
+pois_base <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn, data=dehart_clean, family=poisson(link=log))
+summary(pois_base)
+# generate intermediate model: add DOW, prel, interaction(prel * trait self-esteem)
+pois <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f, data=dehart_clean, family=poisson(link=log))
+summary(pois)
+# generate full model: add age, gender, negevent, posevent, state self-esteem
+pois_full <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f + age + gender_f + negevent + posevent + state, data=dehart_clean, family=poisson(link=log))
+summary(pois_full)
+
+# LRT for the models
+anova(pois_base, pois, test="Chisq") #p-value practically 0, reject null that they explain the same amount of variance
+anova(pois, pois_full, test="Chisq") #p-value=0.4%, reject null that they explain the same amount of variance
+
+Anova(pois, test="LR") # indicates that DOW and prel variables are significant
+Anova(pois_full, test="LR") # indicates that gender and negevent are significant
+
+# specifically test prel and interaction
+pois_test3 <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f, data=dehart_clean, family=poisson(link=log))
+anova(pois_test3, pois, test="Chisq") #p-value practically 0, prel and interaction are significant
+
+# test model including gender and negevent, and then test negevent interaction
+pois_test1 <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f + gender_f + negevent, data=dehart_clean, family=poisson(link=log))
+pois_test2 <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f + gender_f + negevent + negevent:rosn, data=dehart_clean, family=poisson(link=log))
+
+anova(pois, pois_test1, test="Chisq") # p-value 0.3%, reject null that they explain same variance
+anova(pois_test1, pois_test2, test="Chisq") # p-value 59%, fail to reject null that they explain same variance
+
+
+# SUGGESTED FINAL MODEL
+pois_final <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f + gender_f + negevent, data=dehart_clean, family=poisson(link=log))
+summary(pois_final)
+
+#for final model, test nrel and interaction
+pois_final_testInt <- glm(formula = numall ~ nrel_dummy + rosn + prel + prel:rosn + dayweek_f + gender_f + negevent, data=dehart_clean, family=poisson(link=log))
+pois_final_testNrel <- glm(formula = numall ~ rosn + prel + prel:rosn + dayweek_f + gender_f + negevent, data=dehart_clean, family=poisson(link=log))
+anova(pois_final_testInt, pois_final, test="Chisq") #p-value = 3.9%, interaction term is signficant
+anova(pois_final_testNrel, pois_final, test="Chisq") #p-value=0.3%, nrel and interaction jointly significant
+
+
+# residual plots for final model
+
+suppressWarnings(residualPlots(pois_final, layout=c(3,3)))
+# In Pearson residual plots vs. explanatory variables, looking for: same variance throughout range of response, and no serious fluctuations in the mean value (no curvature). This implies we have the correct underlying form of explanatory variables
+# In Pearson residual plots vs. fitted values, looking for: same variance and no fluctuation in mean. This implies we have the correct link function
+# In Pearson residual plots vs. linear predictor, looking for: same variance and no fluctuation in mean. This implies we have the correct link function
+# All of the above plots, looking for: extreme residuals. Only about 5% should be beyond abs(2), typically none beyond abs(3). Large number of extreme residuals indicates overdispersion, meaning there is more variability to the counts that what the model assumes (or there is a missing explanatory variable from the model)
+# Test stats only make sense for numeric variables. Null hypothesis is that there is a relationship btwn residuals and variable. We want to reject the null
+
+plot(pois_final)
+
+
+# Run final model once for each day and compare against version with all data
+pois_final_mon <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="mon"), family=poisson(link=log))
+pois_final_tue <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="tue"), family=poisson(link=log))
+pois_final_wed <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="wed"), family=poisson(link=log))
+pois_final_thu <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="thu"), family=poisson(link=log))
+pois_final_fri <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="fri"), family=poisson(link=log))
+pois_final_sat <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="sat"), family=poisson(link=log))
+pois_final_sun <- glm(formula = numall ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + gender_f + negevent, data=subset(dehart_clean, dayweek_f=="sun"), family=poisson(link=log))
+
+
+```
+
+
+
+## Run ordinal logistic regression model with Desire to Drink Outcome
+
+Version with all data points, which violates independence assumption
+```{r}
+
+library(MASS)
+
+#Version with all data points, which violates independence assumption
+
+# generate base model: nrel dummy, trait self-esteem, interaction(nrel * trait self-esteem)
+prop_odds_base <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn, data=dehart_clean, method="logistic")
+summary(prop_odds_base)
+# generate intermediate model: add DOW, prel, interaction(prel * trait self-esteem)
+prop_odds <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f, data=dehart_clean, method="logistic")
+summary(prop_odds)
+# generate full model: add age, gender, negevent, posevent, state self-esteem
+prop_odds_full <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + prel:rosn + dayweek_f + age + gender_f + negevent + posevent + state, data=dehart_clean, method="logistic")
+summary(prop_odds_full)
+
+# LRT for the models
+anova(prop_odds_base, prop_odds, test="Chisq") #p-value=.07%, reject null that they explain the same amount of variance
+anova(prop_odds, prop_odds_full, test="Chisq") #p-value=7.8%, fail to reject at 5% level that they explain the same amount of variance
+
+
+
+# Looking at whether prel is needed in intermediate model.
+# generate test model: only DOW, no prel
+prop_odds_test1 <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f, data=dehart_clean, method="logistic")
+prop_odds_test2 <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f + prel, data=dehart_clean, method="logistic")
+
+anova(prop_odds_test1, prop_odds, test="Chisq") #p-value=6.9%, fails to reject at 5% level that prel and interaction do not explain more variance
+anova(prop_odds_test2, prop_odds, test="Chisq") # p-value=31%, fail to reject that prel interaction explains more variance
+anova(prop_odds_test1, prop_odds_test2, test="Chisq") # p-value=3.8%, reject null that they explain same variance
+Anova(prop_odds, test="LR") #DOW fixed effects significant, and prel significant at 5% level
+
+# Indicates to me that our model should include prel but not interaction
+
+
+
+# Looking at whether any of the full model covariates should be included in final model.
+Anova(prop_odds_full, test="LR") # gender appears significant
+
+prop_odds_test3 <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f + prel + gender_f, data=dehart_clean, method="logistic")
+anova(prop_odds_test2, prop_odds_test3, test="Chisq") #p-value=3.4%, significant at 5% level to reject that these models explain the same variance
+
+# Indicates to me that we should include gender
+
+
+# SUGGESTED FINAL MODEL
+prop_odds_final <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f + prel + gender_f, data=dehart_clean, method="logistic")
+summary(prop_odds_final)
+
+#for final model, test nrel and interaction
+prop_odds_final_testInt <- polr(formula = desired_binL ~ nrel_dummy + rosn + dayweek_f + prel + gender_f, data=dehart_clean, method="logistic")
+prop_odds_final_testNrel <- polr(formula = desired_binL ~ rosn + dayweek_f + prel + gender_f, data=dehart_clean, method="logistic")
+anova(prop_odds_final_testInt, prop_odds_final, test="Chisq") #p-value = 20%, interaction term is not significant
+anova(prop_odds_final_testNrel, prop_odds_final, test="Chisq") #p-value=9%, nrel and interaction not jointly significant at 5% level
+
+
+# residual plots for final model??
+
+
+
+
+# Run final model once for each day and compare against version with all data
+prop_odds_final_mon <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="mon"), method="logistic")
+prop_odds_final_tue <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="tue"), method="logistic")
+prop_odds_final_wed <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="wed"), method="logistic")
+prop_odds_final_thu <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="thu"), method="logistic")
+prop_odds_final_fri <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="fri"), method="logistic")
+prop_odds_final_sat <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="sat"), method="logistic")
+prop_odds_final_sun <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + prel + gender_f, data=subset(dehart_clean, dayweek_f=="sun"), method="logistic")
+
+```
+
+```{r, results='asis'}
+# Comparison of initial and final models
+
+library(stargazer)
+
+stargazer(pois_base,pois, pois_final, pois_full, prop_odds_base, prop_odds, prop_odds_final, prop_odds_full,
+          star.cutoffs = c(.05,.01,.001),
+          header=F
+          ,type="text"
+          )
+
+stargazer(pois_final, pois_final_mon, pois_final_tue, pois_final_wed, pois_final_thu, pois_final_fri, pois_final_sat, pois_final_sun,
+          star.cutoffs = c(.05,.01,.001),
+          header=F
+          ,type="text"
+          )
+
+stargazer(prop_odds_final, prop_odds_final_mon, prop_odds_final_tue, prop_odds_final_wed, prop_odds_final_thu, prop_odds_final_fri, prop_odds_final_sat, prop_odds_final_sun,
+          star.cutoffs = c(.05,.01,.001),
+          header=F
+          ,type="text"
+          )
+```
+
+
+** REMAINING QUESTIONS:
+- are there other model diagnostics we need to do?
+- Do we need robust standard errors?
+- Need to add explanation of coefficients of interest. Do we also want CI or graphs of some sort?
+
+
