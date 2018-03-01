@@ -8,8 +8,14 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Load Data & Prepare Data Structure
 
+## Introduction 
+
+The following analysis tries to test the hypothesis that *negative interactions with romantic partners would be assotiated with an increase in alcohol consumption and increased desire to drink*. Throughout the analysis, the main outcomes are the daily alcohol consumption and daily index of desire to drink per person. We also want to see if different level of trait self-esteem would result in different alcohol consumption effects when negative romantic interactions has occurred. We predicted that *people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions.* 
+
+The dataset is based on the alcohol consumption dataset by dehart et al, although no analysis methods in this study has sited the original paper. We started out with a exploratory data analysis on the dataset, followed by proposing both count based poisson regression model and ordinal response models for modelling both alcohol consumption and desire to drink. Confounding factors such as age, gender and other negative/positive events are engineered and selected into the models based on goodness of fit, parsimony, interpretability and model validity diagnostics. 
+
+## Load Data & Prepare Data Structure
 
 ```{r message=FALSE, warning=FALSE}
 library(car); require(dplyr); library(Hmisc) 

@@ -1,0 +1,84 @@
+---
+title: "W271 Spring 2018: Lab 2"
+author: "Alyssa Eisenberg, Jeffrey Hsu, Gerard Kelly"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Alcohol Consumption, Self-Esteem and Romantic Interactions
+
+## Introduction 
+
+The following analysis tries to test the hypothesis that *negative interactions with romantic partners would be assotiated with an increase in alcohol consumption and increased desire to drink*. Throughout the analysis, the main outcomes are the daily alcohol consumption and daily index of desire to drink per person. We also want to see if different level of trait self-esteem would result in different alcohol consumption effects when negative romantic interactions has occurred. We predicted that *people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions.* 
+
+The dataset is based on the alcohol consumption dataset by dehart et al, although no analysis methods in this study has sited the original paper. We started out with a exploratory data analysis on the dataset, followed by proposing both count based poisson regression model and ordinal response models for modelling both alcohol consumption and desire to drink. Confounding factors such as age, gender and other negative/positive events are engineered and selected into the models based on goodness of fit, parsimony, interpretability and model validity diagnostics. 
+
+## EDA
+
+#### Load required libraries & data
+
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); 
+library(Hmisc); library(mcprofile); 
+library(ggplot2); library(gridExtra); 
+library(reshape2); library(GGally); 
+library(ggcorrplot); library(package = MASS) 
+```
+
+```{r}
+dehart <- read.table(file="DeHartSimplified.csv", 
+                     header=TRUE, sep=",")
+#describe(dehart) ## comment out due to page limit
+dehart$dayweek_f <- factor(dehart$dayweek); 
+levels(dehart$dayweek_f) = c("mon","tue","wed",
+                             "thu","fri","sat","sun")
+dehart$gender_f <- factor(dehart$gender); 
+levels(dehart$gender_f) = c("male","female")
+dehart$nrel_bool = 1*(dehart$nrel > 0)
+dehart$rosn_cat <- cut(dehart$rosn, 
+                       breaks=c(-1, 2.8, 3.4, Inf), 
+                       labels = c("low", "mid", "high"))
+dehart$trel <- dehart$nrel/sd(dehart$nrel) + dehart$prel/sd(dehart$prel)
+dehart_cleaned <- dehart[!is.na(dehart$numall) & !is.na(dehart$desired),]
+```
+
+**Variables**
+
+- Each unique participant is assigned an id number, encoded as **id**. There are 89 unique participants in the dataset, each with 7 data points
+
+- *studyday* encodes which day of the study it was for the participant. There are 89 observations for each of study days 1 through 7, meaning that we have data for each participant for their first seven days of the study
+
+- *dayweek* is the day of the week for the observation. Again, there are 89 observations for each day of the week 1 through 7 (Monday is coded as 1). Note that participants are unevenly spaced out for which day of the week they start the study: 10 start on Monday, 7 on Tuesday, 19 on Wednesday, 15 on Thursday, 16 on Friday, 6 on Saturday, and 16 on Sunday
+
+- *numall* is the number of alcoholic drinks consumed on that day. It is an integer variable taking 18 distinct values, ranging from 0 to 21 drinks. Note that there is 1 missing value for participant id 42.
+
+- *nrel* is a measure of negative romantic relationship interactions. It is a continuous variable taking 33 distinct values, ranging from 0 to 9
+
+- *prel* is a measure of positive romantic relationship interactions. It is a continuous variable taking 68 distinct values, ranging from 0 to 9
+
+- *negevent* is a combination of several items scored on a 0-3 scale measuring the total number and intensity of negative events on the given day. A higher value indicates a larger number of negative events and/or more extremely negative events. It is a continuous variable taking 131 distinct values, ranging from 0 to 2.4
+
+- *posevent* is a combination of several items scored on a 0-3 scale measuring the total number and intensity of positive events on the given day. A higher value indicates a larger number of positive events and/or more extremely positive events. It is a continuous variable taking 216 distinct values, ranging from 0 to 3.9. Values above 3 are a bit suspicious since this variable combines several items scored on a 0-3 scale, but we cannot be sure that these are erroneous values since we do not know the combination formula or the individual values. There are only 8 rows with values over 3, and the rest of the data appears normal. Thus, we will continue our investigation assuming these are valid data points
+
+- *gender* is coded as 1 (male) or 2 (female), with a slightly higher proportion of females (39 males, and 50 females)
+
+- *rosn* is our measure for trait self-esteem, which is a long-term view of self-worth. This value was measured once at the beginning of the study, so the same value carries through all seven observations for each individual. It is a continuous variable taking 17 distinct values ranging from 2.1 to 4
+
+- *age* is a continuous variable taking 89 distinct values ranging from 24.4 to 42.3
+
+- *desired* measures the participants' desire to drink, with a higher score meaning a greater desire. It is a continuous variable taking 22 distinct values ranging from 1 to 8. Note that there are 3 missing values for participant ids 2, 110, 116.
+
+- *state* is our measure for state self-esteem, which is a short-term view of self-worth. This was measured daily, unlike *rosn* long-term self-esteem. It is a continuous variable taking 25 distinct values ranging from 2.3 to 5. Note that there are 3 missing values for participant ids 2, 4, 110.
+
+#### Observations on single variables
+
+#### Relationships among variables
+
+## Modeling
+
+## Summary
+
+
