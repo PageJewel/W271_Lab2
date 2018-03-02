@@ -1,0 +1,361 @@
+---
+title: "W271 Spring 18: Lab 2"
+author: "Alyssa Eisenberg, Jeffrey Hsu, Gerard Kelly"
+output: pdf_document
+---
+
+# Alcohol Consumption, Self-Esteem and Romantic Interactions
+
+## Introduction 
+The researchers stated the hypothesis as follow: *“We hypothesized that negative interactions with romantic partners would be associated with alcohol consumption (and an increased desire to drink). We predicted that people with low trait self-esteem would drink more on days they experienced more negative relationship interactions compared with days during which they experienced fewer negative relationship interactions. The relation between drinking and negative relationship interactions should not be evident for individuals with high trait self-esteem.”*  
+
+## Exploratory Data Analysis
+```{r message=FALSE, warning=FALSE}
+library(car); require(dplyr); library(Hmisc); library(mcprofile); library(ggplot2); library(gridExtra); library(reshape2); library(GGally); library(ggcorrplot)
+dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+describe(dehart) #with a 10-page limit, should we include this type of output?
+```
+The dataset contains 623 observations of 13 variables representing entries in records kept by study participants. The variable \textbf{id} is a numeric identifier for each of the 89 study participants. Each participant recorded entries for seven consecutive days, indexed by the \textbf{studyday} variable, with the \textbf{dayweek} variable indicating which days of the week these correspond to (Monday = 1). The variable \textbf{gender} takes on one of two values according to whether the participant is male (1) or female (2); about 56\% of the participants are female.  
+<!-- assume that the studyday variable is not important, but that the dayweek variable should be controlled for. 
+This would be a categorical variable so convert to factor.
+(Would be nice to look at WEEKLY consumption but the hypothesis specifically says "days")-->
+```{r}
+dehart$dayweek_f <- factor(dehart$dayweek); levels(dehart$dayweek_f) = c("mon","tue","wed","thu","fri","sat","sun")
+dehart$gender_f <- factor(dehart$gender); levels(dehart$gender_f) = c("male","female")
+```
+For each of the seven days, participants record the number of drinks consumed with the integer \textbf{numall} count variable. There is one missing value. Values range from 0 to 15 with single outliers at 19 and 21. Observations are concentrated in the range 0 to 5. The sample mean and sample variance are 2.52 and 2.66 respectively. The median number of drinks is 3 for Friday, 4 for Saturday and 2 for all other days. There is a pronounced positive skew to the number of drinks for Fridays, Saturdays and Sundays. 
+
+The variables \textbf{nrel} and \textbf{prel} are index measures for the negative and positive romantic-relationship events experienced by the subject each day (ranging from 0 to around 9), while \textbf{negevent} and \textbf{posevent} are index values combining the total number and intensity of negative and positive events experienced that day (ranging from 0 to around 4). There are no missing values for these variables. Distributions (and scales) for these measurements are very different, although tend to be similar for males and females, and similar across days of the week, although \textbf{prel} has signifiantly higher average (mean and median) values on Saturdays and Sundays. Distributions for all these variables are strongly positively-skewed, but this is particularly extreme for \textbf{nrel}, where a small fraction of outlying observations accounts for almost all of the variation. 
+```{r fig.height = 3, fig.width = 8}
+#mean(dehart$numall, na.rm=TRUE); sd(dehart$numall, na.rm=TRUE)
+#aggregate(numall ~ dayweek_f, data = dehart, FUN = function(x) c(m = mean(x), n = median(x)))
+#The distribution of 622 times a Poisson random variable with parameter lambda is overlaid on the histogram with red dots
+lambda = 2.5
+p1 <- ggplot(na.omit(dehart), aes(x = numall)) + geom_histogram(aes(y = ..count..), binwidth = 1, fill="#0072B2") + 
+  geom_point(aes(y = 622*dpois(x = numall,lambda)), color = "red")+ ggtitle("Number of drinks\ndistribution\n(cf Poisson)")
+p2<-ggplot(na.omit(dehart), aes(dayweek_f, numall)) + geom_violin(aes(fill = dayweek_f)) + ggtitle("Number of drinks by\nday of week") + theme(legend.position="none") + coord_flip()
+p3<-ggplot(na.omit(dehart), aes(gender_f, numall)) + geom_violin(aes(fill = gender_f)) + ggtitle("Number of drinks by\ngender") + theme(legend.position="none") + coord_flip()
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+<!--Density plot
+p2b <- ggplot(na.omit(dehart), aes(x = numall, fill = dayweek_f, colour = dayweek_f)) + geom_density(alpha=0.2)+
+  ggtitle("Number of drinks by\nday of week")+theme(plot.title = element_text(lineheight=1, face="bold"),
+                                                   legend.position=c(.7,.7))-->
+<!--are negevent and posevent excluding romatic relationship events or do these overlap??-->
+```{r fig.width = 8}
+p1a<-ggplot(dehart, aes(gender_f, nrel)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "", y = "") + ggtitle("Negative\nRomantic\nEvents") + theme(legend.position="none") +coord_flip()
+p1b<-ggplot(dehart, aes(dayweek_f, nrel)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") + ggtitle("") + theme(legend.position="none") +coord_flip()
+p2a<-ggplot(dehart, aes(gender_f, prel)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "", y = "") + ggtitle("Positive\nRomantic\nEvents") + theme(legend.position="none") +coord_flip()
+p2b<-ggplot(dehart, aes(dayweek_f, prel)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") + ggtitle("") + theme(legend.position="none") +coord_flip()
+p3a<-ggplot(dehart, aes(gender_f, negevent)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "", y = "") +  ggtitle("Negative\nEvents") + theme(legend.position="none") +coord_flip()
+p3b<-ggplot(dehart, aes(dayweek_f, negevent)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") + ggtitle("") + theme(legend.position="none") +coord_flip()
+p4a<-ggplot(dehart, aes(gender_f, posevent)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "", y = "") +  ggtitle("Positive\nEvents") + theme(legend.position="none") +coord_flip()
+p4b<-ggplot(dehart, aes(dayweek_f, posevent)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") + ggtitle("") + theme(legend.position="none") +coord_flip()
+grid.arrange(p1a, p2a, p3a, p4a, p1b, p2b, p3b, p4b, ncol = 4) 
+aggregate(nrel ~ dayweek_f, data = dehart, FUN = mean)
+```
+<!-- ```{r} -->
+<!-- #nrel is a key variable of interest for the hypothesis -->
+<!-- #taking the log of nrel makes it easier to see differences between gender and weekdays -->
+<!-- # the differences are not significant -->
+<!-- p1a<-ggplot(dehart, aes(gender_f, log(nrel))) + geom_boxplot(aes(fill = gender_f)) + #geom_jitter() + -->
+<!--  ggtitle("Negative\nRomantic\nEvents") + theme(legend.position="none") -->
+<!-- p1b<-ggplot(dehart, aes(dayweek_f, log(nrel))) + geom_boxplot(aes(fill = dayweek_f)) + #geom_jitter() + -->
+<!--  ggtitle("Negative\nRomantic\nEvents") + theme(legend.position="none") -->
+<!-- grid.arrange(p1a, p1b, ncol = 2) -->
+<!-- ``` -->
+The \textbf{rosn} variable measures trait (long-term) self-esteem, a single measurement for each participant taken at the beginning of the study that does not change over the course of the seven days. This measurement ranges between 2 and 4, with a mean value around 3.4. Distributions for males and females differ, with a larger proportion of males recording lower values and a larger proportion of females recording higher values. The \textbf{age} variable measures age in years, ranging between 24.4 and 42.3 with a mean value of 34.3 and similar distributions for males and females but with a higher proportion of females recording higher values. Neither \textbf{rosn} nor \textbf{age} have any missing observations. 
+```{r fig.height = 3}
+quantile(dehart$rosn[dehart$gender == 1])
+quantile(dehart$rosn[dehart$gender == 2])
+p1<-ggplot(dehart, aes(x = rosn, fill = gender_f, colour = gender_f)) + geom_density(alpha=0.2)+ ggtitle("Trait self-esteem")+ theme(legend.position=c(.2,.85)) 
+p2<-ggplot(dehart, aes(x = age, fill = gender_f, colour = gender_f)) + geom_density(alpha=0.2)+
+  ggtitle("Age")+theme(legend.position="none") 
+grid.arrange(p1, p2, ncol = 2) 
+```
+The \textbf{desired} variable is a measure of the participant's recorded desire to drink, with values ranging between 1 and 8, a mean of 4.5 and a fairly symmetric distribution. with a significant share of responses at minimum and maximum values. Average values are slightly higher on average for males than for females and are highest on Friday and Saturday and lowest on Sunday and Monday. The \textbf{state} variable is a record of the participant's state (short-term) self-esteem as it varies each day. This ranges between 2 and 5 with a mean of 3.97 and a moderately negative-skewed distribution, little difference between males and females and little difference between days of the week (although with more negative outliers on Mondays). The variables \textbf{desired} and \textbf{state} both contain three missing values, two of these being from the same observation. 
+
+```{r fig.height = 2.5, fig.width = 8}
+# aggregate(desired ~ gender_f, data = dehart, FUN = mean)
+# aggregate(desired ~ dayweek_f, data = dehart, FUN = mean)
+# aggregate(state ~ gender_f, data = dehart, FUN = mean)
+# aggregate(state ~ dayweek_f, data = dehart, FUN = mean)
+p1<-ggplot(na.omit(dehart), aes(gender_f, desired)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "") +
+  ggtitle("Desire to\ndrink") + theme(legend.position="none") + coord_flip()
+p2<-ggplot(na.omit(dehart), aes(dayweek_f, desired)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") +
+  ggtitle("Desire to\ndrink") + theme(legend.position="none") + coord_flip()
+p3<-ggplot(na.omit(dehart), aes(gender_f, state)) + geom_boxplot(aes(fill = gender_f)) + labs(x = "") +
+  ggtitle("State\nSelf-Esteem") + theme(legend.position="none") + coord_flip()
+p4<-ggplot(na.omit(dehart), aes(dayweek_f, state)) + geom_boxplot(aes(fill = dayweek_f)) + labs(x = "") +
+  ggtitle("State\nSelf-Esteem") + theme(legend.position="none") + coord_flip()
+grid.arrange(p1, p2, p3, p4, ncol = 4)
+```
+
+Bivarate relationships between these continuous variables are summarized in the below plot of correlation coefficients below.
+Most of these relationship are weak or insignificant.
+The strongest positive correlations are between \textbf{nrel} and \textbf{negevent} 
+(negative events and negative romantic events), and between \textbf{prel} and \textbf{posevent} (positive events and positive romantic events).
+There is also a moderate positive correlation between the number of drinks and the desire to drink (\textbf{numall} and \textbf{desired}), and a mild positive correlation between trait and state self-esteem (\textbf{rosn} and \textbf{state}). 
+State self-esteem has a weak positive correlation to positive event variables and a weak negative correlation to negative event variables, but no correlation with the number of drinks nor the desire to drink. Trait self-esteem has a weak negative correlation with the desire to drink but no correlation with the number of drinks. Age is uncorreated with any other variable.
+```{r}
+data <- na.omit(dehart[,c(4,5,6,7,8,10,11,12,13)])
+corr <- round(cor(data), 2)
+ggcorrplot(corr, p.mat = cor_pmat(data),hc.order = TRUE, type = "lower", color = c("#FC4E07", "white", "#00AFBB"),outline.col = "white", lab = TRUE)
+```
+
+The heavily skewed distribution for \textbf{nrel} indicates that the negative romatic relationship events relevant to the hypothesis are relatively infrequent. A subset of the dataset can be created for participant-days involving a non-zero rating on this variable.
+The relationship between \textbf{nrel} and \text{numall} can then be compared for participants with below-median trait self-esteem and above-median trait self-esteem. The relationship between negative romatic relationship events and the number of drinks appears to be stronger for individuals with higher trait-self esteem, however the range of this is driven by a relatively small number of individuals recording high \textbf{nrel} values that do not appear in the lower trait-self-esteem subset.
+```{r fig.height = 2.5, fig.width = 8}
+dehart_nrel = dehart[which(dehart$nrel != 0),]
+p1 <- ggplot(na.omit(dehart_nrel[which(dehart_nrel$rosn<=3.5),]), aes(nrel, numall)) + geom_jitter(aes(colour = rosn)) + geom_smooth(colour = "red",method="loess") + ggtitle("Negative romatic events and\nnumber of drinks;\nlow trait-self-esteem") 
+p2 <- ggplot(na.omit(dehart_nrel[which(dehart_nrel$rosn>3.5),]), aes(nrel, numall)) + geom_jitter(aes(colour = rosn)) + geom_smooth(colour = "red",method="loess") + ggtitle("Negative romatic events and\nnumber of drinks;\nhigh trait-self-esteem") 
+grid.arrange(p1, p2,ncol = 2)
+```
+
+
+```{r fig.height = 2.5, fig.width = 8}
+dehart$bins <- dehart$rosn
+dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$nrel <= median(dehart$nrel)] = "low esteem, no bad experience"
+dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$nrel > median(dehart$nrel)] = "low esteem, bad experience"
+dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$nrel <= median(dehart$nrel)] = "high esteem, no bad experience"
+dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$nrel > median(dehart$nrel)] = "high esteem, bad experience"
+```
+```{r fig.height = 2}
+p1<- ggplot(na.omit(dehart), aes(numall, fill = bins, colour = bins)) +
+  geom_density(alpha=0.2) +
+  ggtitle("Self esteem, negative romantic relationship, number of drinks") + ggtitle("Self esteem, negative romantic relationship, number of drinks")
+
+p2<- ggplot(na.omit(dehart), aes(desired, fill = bins, colour = bins)) +
+  geom_density(alpha=0.2) +
+  ggtitle("Self esteem, negative romantic relationship, number of drinks") + ggtitle("Self esteem, negative romantic relationship, desire to drink")
+
+p1
+p2
+```
+
+
+
+```{r}
+# NUMBER OF DRINKS; POISSON MODEL
+# significant interaction effect
+
+# BASIC MODEL
+
+N.mod.0 <- glm(formula = numall ~ nrel + rosn, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.0)
+# hypothesis tests for statistical significance 
+Anova(N.mod.0, test = "LR")
+
+# diagnostic plots
+plot(N.mod.0)
+# Pearson residuals 
+residualPlots(N.mod.0)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.0$fitted.values)
+# histogram of residuals
+hist(N.mod.0$residuals, breaks = 20, col = "blue")
+
+
+N.mod.1 <- glm(formula = numall ~ nrel + rosn + nrel*rosn, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.1)
+# hypothesis tests for statistical significance 
+Anova(N.mod.1, test = "LR")
+
+# diagnostic plots
+plot(N.mod.1)
+# Pearson residuals 
+residualPlots(N.mod.1)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.1$fitted.values)
+# histogram of residuals
+hist(N.mod.1$residuals, breaks = 20, col = "blue")
+
+
+# AGAIN WITH FACTOR FOR NREL
+dehart$nrel_f <- dehart$nrel
+dehart$nrel_f[dehart$nrel_f != 0] = 1
+dehart$nrel_f <- factor(dehart$nrel_f)
+levels(dehart$nrel_f) <- c("low","high")
+
+N.mod.0a <- glm(formula = numall ~ nrel_f + rosn, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.0a)
+# hypothesis tests for statistical significance 
+Anova(N.mod.0a, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.0a)
+# Pearson residuals 
+residualPlots(N.mod.0a)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.0a$fitted.values)
+# histogram of residuals
+hist(N.mod.0a$residuals, breaks = 20, col = "blue")
+
+
+N.mod.1a <- glm(formula = numall ~ nrel_f + rosn + nrel_f*rosn, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.1a)
+# hypothesis tests for statistical significance 
+Anova(N.mod.1a, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.1a)
+# Pearson residuals 
+residualPlots(N.mod.1a)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.1a$fitted.values)
+# histogram of residuals
+hist(N.mod.1a$residuals, breaks = 20, col = "blue")
+
+
+
+# little significance for anything
+```
+```{r}
+# INTERMEDIATE MODEL; DAYS OF THE WEEK
+
+N.mod.2 <- glm(formula = numall ~ nrel + prel + rosn + nrel*rosn + prel*rosn + dayweek_f, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.2)
+# hypothesis tests for statistical significance 
+Anova(N.mod.2, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.2)
+# Pearson residuals 
+residualPlots(N.mod.2)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.2$fitted.values)
+# histogram of residuals
+hist(N.mod.2$residuals, breaks = 20, col = "blue")
+
+
+# AGAIN WITH FACTOR FOR NREL
+N.mod.2a <- glm(formula = numall ~ nrel + prel + rosn + nrel*rosn + prel*rosn + dayweek_f, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.2a)
+# hypothesis tests for statistical significance 
+Anova(N.mod.2a, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.2a)
+# Pearson residuals 
+residualPlots(N.mod.2a)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.2a$fitted.values)
+# histogram of residuals
+hist(N.mod.2a$residuals, breaks = 20, col = "blue")
+
+```
+```{r}
+# EVERYTHING MODEL
+
+N.mod.3 <- glm(formula = numall ~ nrel + prel + negevent + posevent + rosn + nrel*rosn + prel*rosn + dayweek_f + gender_f, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.3)
+# hypothesis tests for statistical significance 
+Anova(N.mod.3, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.3)
+# Pearson residuals 
+residualPlots(N.mod.3)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.3$fitted.values)
+# histogram of residuals
+hist(N.mod.3$residuals, breaks = 20, col = "blue")
+
+
+# AGAIN WITH FACTOR FOR NREL
+N.mod.3a <- glm(formula = numall ~ nrel_f + prel + negevent + posevent + rosn + nrel_f*rosn + prel*rosn + dayweek_f + gender_f, family = poisson(link = "log"), data = na.omit(dehart))
+summary(N.mod.3a)
+# hypothesis tests for statistical significance 
+Anova(N.mod.3a, test = "LR")
+
+# diagnostic plots
+par(mfrow=c(2,2))
+plot(N.mod.3a)
+# Pearson residuals 
+residualPlots(N.mod.3a)
+# scatterplot of actual and fitted values
+scatterplot(as.numeric(na.omit(dehart)$numall), N.mod.3a$fitted.values)
+# histogram of residuals
+hist(N.mod.3a$residuals, breaks = 20, col = "blue")
+
+```
+# DESIRE TO DRINK
+
+```{r}
+# DESIRE TO DRINK; ORDINAL LOGISTIC MODEL
+# No significant interaction effect
+
+# number of 'bins' : 
+N <- 3
+
+dehart$desired_o <- cut(dehart$desired,N)
+levels(dehart$desired_o) <- c("low","med","high")
+
+library(package = MASS)  
+
+# BASIC MODEL
+
+D.mod.0 <- polr(formula = desired_o ~ nrel + rosn, method = "logistic", data = na.omit(dehart))
+summary(D.mod.0)
+# hypothesis tests for statistical significance 
+Anova(D.mod.0, test = "LR")
+
+
+
+D.mod.1 <- polr(formula = desired_o ~ nrel + rosn + nrel*rosn, method = "logistic", data = na.omit(dehart))
+summary(D.mod.1)
+# hypothesis tests for statistical significance 
+Anova(D.mod.1, test = "LR")
+
+
+# factors for nrel
+D.mod.0a <- polr(formula = desired_o ~ nrel_f + rosn, method = "logistic", data = na.omit(dehart))
+summary(D.mod.0a)
+# hypothesis tests for statistical significance 
+Anova(D.mod.0a, test = "LR")
+
+
+D.mod.1a <- polr(formula = desired_o ~ nrel_f + rosn + nrel_f*rosn, method = "logistic", data = na.omit(dehart))
+summary(D.mod.1a)
+# hypothesis tests for statistical significance 
+Anova(D.mod.1a, test = "LR")
+
+```
+```{r}
+# INTERMEDIATE MODEL; DAYS OF THE WEEK
+
+D.mod.2 <- polr(formula = desired_o ~ nrel + prel + rosn + nrel*rosn + prel*rosn + dayweek_f, method = "logistic", data = na.omit(dehart))
+summary(D.mod.2)
+# hypothesis tests for statistical significance 
+Anova(D.mod.2, test = "LR")
+
+
+
+# AGAIN WITH FACTOR FOR NREL
+D.mod.2a <- polr(formula = desired_o ~ nrel + prel + rosn + nrel*rosn + prel*rosn + dayweek_f, method = "logistic", data = na.omit(dehart))
+summary(D.mod.2a)
+# hypothesis tests for statistical significance 
+Anova(D.mod.2a, test = "LR")
+
+```
+```{r}
+# EVERYTHING MODEL
+
+D.mod.3 <- polr(formula = desired_o ~ nrel + prel + negevent + posevent + rosn + nrel*rosn + prel*rosn + dayweek_f + gender_f, method = "logistic", data = na.omit(dehart))
+summary(D.mod.3)
+# hypothesis tests for statistical significance 
+Anova(D.mod.3, test = "LR")
+
+
+# AGAIN WITH FACTOR FOR NREL
+D.mod.3a <- polr(formula = desired_o ~ nrel_f + prel + negevent + posevent + rosn + nrel_f*rosn + prel*rosn + dayweek_f + gender_f, method = "logistic", data = na.omit(dehart))
+summary(D.mod.3a)
+# hypothesis tests for statistical significance 
+Anova(D.mod.3a, test = "LR")
+
+```
