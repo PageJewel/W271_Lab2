@@ -162,7 +162,15 @@ anova(prop_odds_test2, prop_odds, test="Chisq") # p-value=31%, fail to reject th
 anova(prop_odds_test1, prop_odds_test2, test="Chisq") # p-value=3.8%, reject null that they explain same variance
 Anova(prop_odds, test="LR") #DOW fixed effects significant, and prel significant at 5% level
 
+
+
+library(sandwich); library("lmtest")
+coeftest(prop_odds, vcov = vcovCL(prop_odds, cluster=na.omit(dehart)$id)) #prel and interaction not significant
+waldtest(prop_odds,prop_odds_test2,vcov=vcovCL(prop_odds, cluster=na.omit(dehart)$id)) #interaction not significant
+waldtest(prop_odds_test2,prop_odds_test1,vcov=vcovCL(prop_odds_test2, cluster=na.omit(dehart)$id)) #prel not significant
+
 # Indicates to me that our model should include prel but not interaction
+# ACTUALLY using clustered SE should not include either
 
 
 
@@ -172,7 +180,12 @@ Anova(prop_odds_full, test="LR") # gender appears significant
 prop_odds_test3 <- polr(formula = desired_binL ~ nrel_dummy + rosn + nrel_dummy:rosn + dayweek_f + prel + gender_f, data=dehart_clean, method="logistic")
 anova(prop_odds_test2, prop_odds_test3, test="Chisq") #p-value=3.4%, significant at 5% level to reject that these models explain the same variance
 
+
+coeftest(prop_odds_full, vcov = vcovCL(prop_odds_full, cluster=na.omit(dehart)$id)) #nothing new significant
+waldtest(prop_odds_test2,prop_odds_test3,vcov=vcovCL(prop_odds_test2, cluster=na.omit(dehart)$id)) #no gender
+
 # Indicates to me that we should include gender
+# NOT using clustered SE
 
 
 # SUGGESTED FINAL MODEL
