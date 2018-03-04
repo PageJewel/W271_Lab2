@@ -31,7 +31,7 @@ dehart$gender_f <- factor(dehart$gender);
 levels(dehart$gender_f) = c("male","female") #categorical variable gender
 ```
 
-This dataset has 623 observations and 13 variables, representing 7 daily entries in records kept by 89 study participants. There are a few missing values, noted at each variable below where they occur. No values appear top or bottom coded in the data.
+This dataset has 623 observations and 13 variables, representing 7 daily entries in records kept by 89 study participants. There are a few missing values, noted at each variable below where they occur, which we remove for our analysis. No values appear top or bottom coded in the data.
 
 \begin{description}
 \item[id:] an id number assigned to each unique participant (89 people, with 7 data points each)
@@ -130,10 +130,8 @@ dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$nrel <= median(dehart$nr
 dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$nrel > median(dehart$nrel)] = "low esteem, bad experience"
 dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$nrel <= median(dehart$nrel)] = "high esteem, no bad experience"
 dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$nrel > median(dehart$nrel)] = "high esteem, bad experience"
-ggplot(dehart, aes(numall, fill = bins, colour = bins)) + geom_density(alpha=0.2) +
-  ggtitle("Self esteem, negative romantic relationship, number of drinks")
-ggplot(dehart, aes(desired, fill = bins, colour = bins)) + geom_density(alpha=0.2) + 
-  ggtitle("Self esteem, negative romantic relationship, number of drinks")
+ggplot(dehart, aes(numall, fill = bins, colour = bins)) + geom_density(alpha=0.2) +  ggtitle("Self esteem, negative romantic relationship, number of drinks")
+ggplot(dehart, aes(desired, fill = bins, colour = bins)) + geom_density(alpha=0.2) + ggtitle("Self esteem, negative romantic relationship, number of drinks")
 ```
 Abstracting from the direction of causality and the influence of other variables (most obviously the day of the week), these comparisons show a difference in the number of drinks consumed by 'high' and 'low' self-esteem respondents on days involving a negative relationship experience, with lower self-esteem individuals drinking more on average. Distributions for the high self-esteem categories are quite similar regardless of whether a negative experience occurred on not; in fact, the presence of negative romantic experiences is here associated with a higher density at *lower* numbers of drinks. Distributions for low self-esteem individuals more noticably differ betwen those experiencing a negative relationship experience that day and those not. While negative romantic relationship experiences are associated with higher average desire to drink for both high and low self-esteem individuals, there seems to be sligthly less effect for low self-esteem individuals relative to high self-esteem individuals. Interestingly it appears that with regard to drinks consumed (and the desire to drink), low self-esteem individuals have a more significant difference from high self-esteem individuals in their response to *positive* romantic relationship expeirences, as illustrated: 
 
@@ -142,17 +140,14 @@ dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$prel <= median(dehart$pr
 dehart$bins[dehart$rosn <= median(dehart$rosn) & dehart$prel > median(dehart$prel)] = "low esteem, good experience"
 dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$prel <= median(dehart$prel)] = "high esteem, no good experience"
 dehart$bins[dehart$rosn > median(dehart$rosn) & dehart$prel > median(dehart$prel)] = "high esteem, good experience"
-ggplot(dehart, aes(numall, fill = bins, colour = bins)) + geom_density(alpha=0.2) + 
-  ggtitle("Self esteem, positive romantic relationship, number of drinks")
-ggplot(dehart, aes(desired, fill = bins, colour = bins)) + geom_density(alpha=0.2) +
-  ggtitle("Self esteem, positive romantic relationship, number of drinks")
+ggplot(dehart, aes(numall, fill = bins, colour = bins)) + geom_density(alpha=0.2) + ggtitle("Self esteem, positive romantic relationship, number of drinks")
+ggplot(dehart, aes(desired, fill = bins, colour = bins)) + geom_density(alpha=0.2) + ggtitle("Self esteem, positive romantic relationship, number of drinks")
 ```
 
 
 ## Modeling
 
 ### Initial Model Specification
-
 First, we decided to run two types of model based on the output variable of interest. As already stated, number of drinks is our primary outcome and desire to drink is a secondary outcome variable. For the number of drinks model, we chose a Poisson model because this is a count variable and its distribution approximately followed a Poisson model.\footnote{While we also considered binning the variable and using a proportional odds model, we did not see clear break points in the distribution to support that choice.} For the desire to drink model, we chose a proportional log-odds model because it is a ranking on a scale of 1 to 8. Thus, a Poisson model is not appropriate because the output is not a count variable, and a linear regression is not appropriate because it is a ranked output instead of a continuous one. Based on its univariate distribution, we decided to bin the variable into low (1-3.5), mid (3.5-6), and high (6-8) desire to drink.
 
 For each of these models, we decided to run them on all observations without missing values (fewer than 5 had missing values). Although this violates the model assumption of independence between observations (since each individual has 7 data points collected over time), we wanted to take advantage of the increased number of observations due to the low variation in negative relationship interactions. Accordingly our analysis will use the more conservative clustered robust standard errors. We also try to validate the results on the full data set by running our final model seven more times on data for each individual day of the week.
@@ -183,7 +178,6 @@ pois_full <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + prel + prel:ro
 ```
 
 ### Final Model Choice
-
 From our intermediate model, we checked whether the additional variables included beyond the base model were significant using a likelihood ratio test and Wald tests using clustered standard errors. The LRT assumes independence, which we know does not hold, and the Wald test assumes a normal distribution, which can be reasonable due to having a large enough sample. We found that the significance depends on the type of test and standard errors used, and thus followed the more conservative results from the Wald test with clustered standard errors in determining statistical significance. We found that \textbf{prel} and its interaction with \textbf{rosn} were jointly not significant, but that the day of week fixed effects were significant with a p-value of practically 0 (we omit full test results for brevity). Thus, we choose to remove \textbf{prel} and its interaction term from our final model.
 
 ```{r}
@@ -202,7 +196,8 @@ Based on this analysis, we created a final Poisson model (see results in Table 1
 
 ```{r}
 # Create final model
-pois_final <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + dayweek_f, data=dehart, family=poisson(link=log))
+pois_final <- glm(formula = numall ~ nrel_f + rosn + nrel_f:rosn + dayweek_f, data=dehart,
+                  family=poisson(link=log))
 
 # Obtain AIC values
 cbind(base=AIC(pois_base),int=AIC(pois_int), final=AIC(pois_final),full=AIC(pois_full))
@@ -225,7 +220,7 @@ prop_odds_final <- polr(formula = desired_binL ~ nrel_f + rosn + nrel_f:rosn
 
 With all our models created, we create Table 1 with the output of all coefficient values and their clustered robust standard errors.
 
-```{r, results='asis'}
+```{r, message=FALSE, results='asis'}
 # Get clustered robust SE for models with all observations, robust SE for Fri model
 se.pois_base <- sqrt(diag(vcovCL(pois_base, cluster=dehart$id)))
 se.pois_int <- sqrt(diag(vcovCL(pois_int, cluster=dehart$id)))
@@ -244,7 +239,6 @@ stargazer(pois_base,pois_int, pois_final, pois_full, pois_final_fri, pois_final_
 ```
 
 ### Residual Diagnostics
-
 Due to space constraints, we only show residual diagnostics for the final Poisson model on all observations here. However, we saw similar patterns for the individual day Poisson models.
 
 In the plots of Pearson residuals vs. each explanatory variable and the linear predictor, we see that the residual means are pretty constant across the explanatory variable range (for the individual day models, there was a bit more curvature to the means). However, the residual variances are clearly different for trait self-esteem and day of week. This heteroskedasticity indicates we should be using robust standard errors. The other thing to note in these plots is that there are numerous extreme values of residuals greater than 2. This is confirmed in the histogram of the residuals showing a positive skew and the q-q plot showing curvature away from the normal line. This indicates overdispersion in our model, potentially indicating that we have omitted variables which would help reduce the additional variability to the counts that the model cannot currently explain. Examples of potentially missing explanatory variables may include socioeconomic status, attractiveness, and quality of friendships.
@@ -264,7 +258,6 @@ plot(pois_final, which=2); plot(pois_final, which=5)
 ```
 
 ### Interpretation of Model Results
-
 The coefficient of interest to our hypothesis is the interaction between negative relationship interactions and trait self-esteem. In our final model for number of drinks, we see that the expected mean number of drinks decreases by 0.98 times for every 0.4 decrease (one standard deviation) in trait self-esteem when negative relationship interactions are not present. When negative relationship interactions are present, the expected mean number of drinks instead increases by 1.12 times for every 0.4 decrease in trait self-esteem. Across all models in Table 1 except the Friday specific model, this coefficient remains negative with a moderate magnitude. This is in the correct direction to support the hypothesis that negative relationship interactions are positively associated with drinking for those with low trait self-esteem. However, this coefficient is only statistically significant in one specification (our intermediate specification for the number of drinks). 
 
 Due to this lack of robustness in the day-specific models and in the model for desire to drink, as well as the potential for omitted variables in the model, we have to conclude that we fail to reject the null that this interaction is 0 and there is no difference in the effect of negative relationship interactions based on level of trait self-esteem.
@@ -273,9 +266,10 @@ Due to this lack of robustness in the day-specific models and in the model for d
 # Interpretation of coefficient when nrel=0
 unname(round(1/exp(sd(dehart$rosn)*pois_final$coefficients["rosn"]),2))
 # Interpretation of coefficient when nrel=1
-unname(round(1/exp(sd(dehart$rosn)*(pois_final$coefficients["rosn"]+pois_final$coefficients["nrel_f1:rosn"])),2))
+unname(round(1/exp(sd(dehart$rosn)*(pois_final$coefficients["rosn"]+
+                                      pois_final$coefficients["nrel_f1:rosn"])),2))
 ```
 
 ## Summary
 
-We use a Poisson regression model to examine the relationship between negative romantic relationship events and alcohol consumption, and whether this relationship differs according to trait self-esteem. We find some evidence of a relationship between negative romantic relationship events and alcoholic drinks consumed. However for most model specificiations including our final model (using clustered standard errors to account for dependence where all available observations are used), we fail to identify a statistically significant interaction effect between negative romantic relationship events and trait self-esteem on the number of alcoholic drinks consumed. Using a proportional log-odds we similarly fail to find evidence of such an interaction effect on the desire to drink.  
+We use a Poisson regression model to examine the relationship between negative romantic relationship events and alcohol consumption, and whether this relationship differs according to trait self-esteem. We find some evidence of a relationship between negative romantic relationship events and alcoholic drinks consumed. However for most model specificiations including our final model (using clustered standard errors to account for dependence where all available observations are used), we fail to identify a statistically significant interaction effect between negative romantic relationship events and trait self-esteem on the number of alcoholic drinks consumed. Using a proportional log-odds model we similarly fail to find evidence of such an interaction effect on the desire to drink.  
