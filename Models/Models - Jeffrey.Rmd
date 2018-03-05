@@ -23,7 +23,7 @@ library(mcprofile); library(ggplot2); library(gridExtra)
 library(reshape2); library(GGally); library(ggcorrplot)
 library(package = MASS) # for ordinal response variable modeling
 
-dehart <- read.table(file="DeHartSimplified.csv", header=TRUE, sep=",")
+dehart <- read.table(file="../DeHartSimplified.csv", header=TRUE, sep=",")
 dehart$dayweek_f <- factor(dehart$dayweek); levels(dehart$dayweek_f) = c("mon","tue","wed","thu","fri","sat","sun")
 dehart$gender_f <- factor(dehart$gender); levels(dehart$gender_f) = c("male","female")
 # nrel_boolean
@@ -114,4 +114,20 @@ full_desired.ha <- polr(formula = desired_ord ~ nrel_bool + rosn + prel +
                        dayweek_f + age + gender + negevent + posevent + state, 
                       data = dehart_cleaned, method ="logistic")
 anova(full_desired, full_desired.ha)
+
+
+######## Try Out
+hist(log(dehart$nrel))
+log(dehart$numall)
+full_numall2 <- glm(numall ~ nrel_bool + rosn + I(rosn^2) + nrel_bool*rosn + 
+                      prel + prel*rosn + dayweek_f + age + gender + negevent + posevent + state,
+                   family = poisson(link = "log"), data = dehart_cleaned)
+summary(full_numall2)
+
+full_numall_bool <- glm((numall>0) ~ nrel_bool + rosn + I(rosn^2) + nrel_bool*rosn + 
+                      prel + prel*rosn + dayweek_f + age + gender + negevent + posevent + state,
+                   family = binomial(link = logit), data = dehart_cleaned)
+
+summary(full_numall_bool)
+residualPlots(full_numall_bool)
 ```
